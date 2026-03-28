@@ -1,31 +1,36 @@
 # qwen-mcp-agent
 
-A small, quantized LLM for local MCP ReAct agent testing. Contains **Qwen2.5-3B-Instruct** in Q4_K_M GGUF format (~1.8GB), stored via Git LFS.
+A small, quantized LLM for local MCP ReAct agent testing. Contains **Qwen2.5-3B-Instruct** in Q4_K_M GGUF format (~1.8GB).
 
-## Clone & pull the model
+The model is split into 95MB chunks (no Git LFS required). After cloning, run the assemble script to combine them.
+
+## Setup
+
+### 1. Clone the repo
 
 ```bash
-# Make sure git-lfs is installed
-git lfs install
-
-# Clone (this will automatically pull the LFS files)
-git clone https://github.com/saadahmed/qwen-mcp-agent.git
+git clone https://github.com/algowizzzz/qwen-mcp-agent.git
 cd qwen-mcp-agent
-
-# If the .gguf file shows as a pointer, pull it manually:
-git lfs pull
 ```
+
+### 2. Assemble the model
+
+**Mac / Linux:**
+```bash
+chmod +x assemble.sh
+./assemble.sh
+```
+
+**Windows:**
+```cmd
+assemble.bat
+```
+
+This combines the 20 chunks in `models/chunks/` into the full model at `models/Qwen2.5-3B-Instruct-Q4_K_M.gguf`.
 
 ## Run with Ollama
 
 ```bash
-# Create a Modelfile
-cat > Modelfile <<EOF
-FROM ./models/Qwen2.5-3B-Instruct-Q4_K_M.gguf
-PARAMETER temperature 0
-PARAMETER num_ctx 4096
-EOF
-
 # Import into Ollama
 ollama create qwen3b -f Modelfile
 
@@ -36,7 +41,6 @@ ollama run qwen3b "Hello, what can you do?"
 ## Run with llama.cpp
 
 ```bash
-# If you have llama.cpp installed:
 llama-cli -m models/Qwen2.5-3B-Instruct-Q4_K_M.gguf \
   -p "You are a helpful assistant." \
   --interactive \
@@ -49,7 +53,7 @@ llama-cli -m models/Qwen2.5-3B-Instruct-Q4_K_M.gguf \
 | Resource | Minimum | Recommended |
 |----------|---------|-------------|
 | RAM | 8 GB | 16 GB |
-| Disk | 2 GB free | 4 GB free |
+| Disk | 4 GB free | 6 GB free |
 | GPU | Not required | Any Metal/CUDA GPU speeds up inference |
 
 The Q4_K_M quantization runs fine on CPU-only machines — expect ~5-10 tokens/sec on Apple Silicon without GPU offload, ~20-30 tokens/sec with Metal.
@@ -60,7 +64,7 @@ The Q4_K_M quantization runs fine on CPU-only machines — expect ~5-10 tokens/s
 |----------|-------|
 | Base model | Qwen2.5-3B-Instruct |
 | Quantization | Q4_K_M (4-bit, medium) |
-| File size | ~1.8 GB |
+| File size | ~1.8 GB (split into 20 chunks of ~95MB) |
 | Context window | 32K tokens (default), 4K recommended for agents |
 | Source | [bartowski/Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF) |
 | License | Apache 2.0 |
