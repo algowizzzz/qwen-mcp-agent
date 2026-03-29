@@ -3,3 +3,5 @@
 *.tmp
 *.gguf
 __pycache__/
+models/chunks/
+models/*.gguf
