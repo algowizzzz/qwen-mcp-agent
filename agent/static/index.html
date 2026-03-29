@@ -374,7 +374,113 @@
             color: var(--text-secondary);
         }
 
-        /* Tool call bubbles */
+        /* Reasoning steps container */
+        .reasoning-chain {
+            align-self: flex-start;
+            max-width: 85%;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+        .reasoning-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .reasoning-header .arrow {
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+        .reasoning-header.collapsed .arrow { transform: rotate(-90deg); }
+        .reasoning-steps {
+            padding: 0;
+            transition: max-height 0.3s ease;
+        }
+        .reasoning-steps.collapsed { display: none; }
+
+        .step {
+            display: flex;
+            gap: 10px;
+            padding: 10px 14px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .step-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .step.think .step-icon { background: rgba(251, 191, 36, 0.15); }
+        .step.act .step-icon { background: var(--accent-dim); }
+        .step.observe .step-icon { background: rgba(46, 158, 90, 0.15); }
+        .step.answer .step-icon { background: var(--accent-dim); }
+
+        .step-content { flex: 1; min-width: 0; }
+        .step-label {
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .step.think .step-label { color: #d49b0a; }
+        .step.act .step-label { color: var(--accent); }
+        .step.observe .step-label { color: #2e9e5a; }
+        .step.answer .step-label { color: var(--accent); }
+
+        .step-text {
+            color: var(--text-secondary);
+            word-break: break-word;
+        }
+        .step-text code {
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 11px;
+            background: var(--bg-tertiary);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+        .step-observe-text {
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            max-height: 60px;
+            overflow: hidden;
+            position: relative;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .step-observe-text.expanded { max-height: none; }
+        .step-expand {
+            color: var(--accent);
+            font-size: 11px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            margin-top: 2px;
+        }
+        .step-expand:hover { text-decoration: underline; }
+        .step-connector {
+            width: 2px;
+            height: 8px;
+            background: var(--border);
+            margin-left: 25px;
+        }
+
+        /* Tool call bubbles (legacy compat) */
         .tool-bubble {
             background: var(--tool-bg);
             border: 1px solid var(--tool-border);
@@ -791,6 +897,7 @@
             document.getElementById('welcome').classList.add('hidden');
             convo.messages.forEach(m => {
                 if (m.type === 'user') addUserMsg(m.text, m.time, false);
+                else if (m.type === 'reasoning') addReasoningChain(m.steps, false);
                 else if (m.type === 'tool') addToolCallUI(m.data, false);
                 else if (m.type === 'agent') addAgentMsg(m.text, m.time, false);
             });
@@ -951,6 +1058,77 @@
         btn.textContent = output.classList.contains('expanded') ? 'Show less' : 'Show more';
     }
 
+    function addReasoningChain(steps, save) {
+        const chat = document.getElementById('chat');
+        const chain = document.createElement('div');
+        chain.className = 'reasoning-chain';
+
+        // Count tool calls for header
+        const actSteps = steps.filter(s => s.type === 'act');
+        const headerText = actSteps.length > 0
+            ? 'Reasoning: ' + actSteps.length + ' tool call' + (actSteps.length > 1 ? 's' : '')
+            : 'Reasoning';
+
+        chain.innerHTML = '<div class="reasoning-header" onclick="toggleReasoning(this)">' +
+            '<span class="arrow">&#x25BC;</span> ' +
+            '<span>&#x1F9E0; ' + headerText + '</span>' +
+            '</div>' +
+            '<div class="reasoning-steps"></div>';
+
+        const stepsContainer = chain.querySelector('.reasoning-steps');
+        const icons = { think: '&#x1F4AD;', act: '&#x1F527;', observe: '&#x1F50D;', answer: '&#x2705;' };
+        const labels = { think: 'Think', act: 'Act', observe: 'Observe', answer: 'Answer' };
+
+        steps.forEach(function(step, i) {
+            if (step.type === 'answer') return; // skip, shown as main reply
+
+            const div = document.createElement('div');
+            div.className = 'step ' + step.type;
+
+            let textHtml = '';
+            if (step.type === 'act') {
+                textHtml = '<span class="step-text">' + escHtml(step.tool) +
+                    '(<code>' + escHtml(JSON.stringify(step.tool_input)) + '</code>)</span>';
+            } else if (step.type === 'observe') {
+                const needsExpand = step.content.length > 150;
+                const obsId = 'obs_' + Date.now() + '_' + i;
+                textHtml = '<div class="step-observe-text" id="' + obsId + '">' +
+                    escHtml(step.content) + '</div>' +
+                    (needsExpand ? '<button class="step-expand" onclick="toggleStepObserve(this)">Show more</button>' : '');
+            } else {
+                textHtml = '<span class="step-text">' + escHtml(step.content) + '</span>';
+            }
+
+            div.innerHTML = '<div class="step-icon">' + (icons[step.type] || '') + '</div>' +
+                '<div class="step-content">' +
+                    '<div class="step-label">' + (labels[step.type] || step.type) + '</div>' +
+                    textHtml +
+                '</div>';
+
+            stepsContainer.appendChild(div);
+        });
+
+        chat.appendChild(chain);
+        scrollChat();
+
+        if (save !== false) {
+            const convo = getActiveConvo();
+            convo.messages.push({ type: 'reasoning', steps: steps });
+            saveConvos();
+        }
+    }
+
+    function toggleReasoning(header) {
+        header.classList.toggle('collapsed');
+        header.nextElementSibling.classList.toggle('collapsed');
+    }
+
+    function toggleStepObserve(btn) {
+        const text = btn.previousElementSibling;
+        text.classList.toggle('expanded');
+        btn.textContent = text.classList.contains('expanded') ? 'Show less' : 'Show more';
+    }
+
     function addTypingIndicator() {
         const chat = document.getElementById('chat');
         const div = document.createElement('div');
@@ -1016,8 +1194,9 @@
 
             removeTypingIndicator();
 
-            if (data.tool_calls && data.tool_calls.length > 0) {
-                data.tool_calls.forEach(tc => addToolCallUI(tc));
+            // Show reasoning chain if steps exist
+            if (data.steps && data.steps.length > 1) {
+                addReasoningChain(data.steps);
             }
 
             addAgentMsg(data.reply);
