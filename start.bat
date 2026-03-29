@@ -9,3 +9,8 @@ echo   Press Ctrl+C to stop.
 echo.
 call .venv\Scripts\activate.bat
 python -m uvicorn agent.server:app --host 0.0.0.0 --port 8000
+echo.
+echo ============================================================
+echo   Server stopped. If it crashed, the error is shown above.
+echo ============================================================
+pause
